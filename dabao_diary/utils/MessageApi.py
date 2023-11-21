@@ -1,51 +1,19 @@
 import requests
 import json
-from django.conf import settings
+from dabao_diary.constants import COMMAND_LIST, HEADERS, URL
 
 from dabao_diary.entity.MessageEntity import MessageEntity
-
-URL = "https://api.line.me/v2/bot/message/reply"
-
-HEADERS = {
-  'Authorization': 'Bearer ' + settings.ACCESS_TOKEN,
-  'Content-Type': 'application/json'
-}
-
-class Command:
-  BABY_LIST = '我的寶寶'
-  ACTION_LIST = '動作列表'
-  EVENT_QUERY = '事件查詢'
-  ADD_BABY = '新增寶寶'
-  ADD_ACTION = '新增動作'
-  ADD_EVENT = '新增事件'
-  COMMAND_LIST = '查詢指令'
-
-COMMAND_LIST = f"""指令列表
-- {Command.BABY_LIST}
-- {Command.ACTION_LIST}
-- {Command.EVENT_QUERY}
-- {Command.ADD_BABY}
-- {Command.ADD_ACTION}
-- {Command.ADD_EVENT}
-"""
-
-BABY_LIST = []
-
-class Action:
-  CREATE_BABY = 'CREATE_BABY'
-  CREATE_ACTION = 'CREATE_ACTION'
-
-USER_ACTION = {}
+from dabao_diary.enums.Command import Command
+from dabao_diary.enums.ConfirmOption import Confirm
+from dabao_diary.model.BabyList import BabyList
+from dabao_diary.model.UserAction import UserAction
 
 class CreateBabyJob():
   name = ''
+  value = ''
 
   def setName(self, name):
-    self.name = name
-
-class Confirm():
-  yes = '是'
-  no = '否'
+    self.value = name
 
 class MessageApi():
   def __init__(self, user_id: str, reply_token: str, msg_entity: MessageEntity):
@@ -57,7 +25,6 @@ class MessageApi():
     payload = self.getPayload()
     response = requests.request("POST", URL, headers=HEADERS, data=payload)
     print(response.text)
-    print(USER_ACTION)
 
   def getPayload(self):
     msg_type = self.msg_entity.getType()
@@ -69,16 +36,16 @@ class MessageApi():
   def getTextMsgPayload(self):
     message = self.msg_entity.getMessage()
 
-    if self.user_id in USER_ACTION:
-      if isinstance(USER_ACTION[self.user_id], CreateBabyJob):
+    if UserAction.isUserActionExist(self.user_id):
+      if isinstance(UserAction.getUserAction(self.user_id), CreateBabyJob):
         return self.getCreateBabyJobPayload()
 
     # without job
-    if message == Command.COMMAND_LIST:
+    if message == Command.COMMAND_LIST.value:
       return self.getCommandListPayload()
-    elif message == Command.ADD_BABY:
+    elif message == Command.ADD_BABY.value:
       return self.getAddBabyPayload()
-    elif message == Command.BABY_LIST:
+    elif message == Command.BABY_LIST.value:
       return self.getBabyListPayload()
     else:
       return self.getInvalidPayload()
@@ -95,7 +62,7 @@ class MessageApi():
     })
 
   def getAddBabyPayload(self):
-    USER_ACTION[self.user_id] = CreateBabyJob()
+    UserAction.setUserAction(self.user_id, CreateBabyJob())
 
     return json.dumps({
       "replyToken": self.reply_token,
@@ -113,7 +80,7 @@ class MessageApi():
       "messages": [
         {
           "type": "text",
-          "text": f"請輸入有效指令，可輸入'{Command.COMMAND_LIST}'已取得指令列表"
+          "text": f"請輸入有效指令，可輸入'{Command.COMMAND_LIST.value}'已取得指令列表"
         }
       ]
     })
@@ -121,20 +88,20 @@ class MessageApi():
   def getCreateBabyJobPayload(self):
     message = self.msg_entity.getMessage()
 
-    if (not USER_ACTION[self.user_id].name):
-      USER_ACTION[self.user_id].setName(message)
+    if (not UserAction.getUserAction(self.user_id).value):
+      UserAction.getUserAction(self.user_id).setName(message)
       return self.getConfirmBabyJobPayload(message)
 
-    if (message == Confirm.no):
+    if (message == Confirm.NO.value):
       return self.getAddBabyPayload()
 
-    name = USER_ACTION[self.user_id].name
-    USER_ACTION.pop(self.user_id, None)
+    name = UserAction.getUserAction(self.user_id).value
+    UserAction.removeUserAction(self.user_id)
 
-    if (name in BABY_LIST):
+    if (name in BabyList.getList()):
       return self.getBabyAlreadyExistPayload(name)
     else:
-      BABY_LIST.append(name)
+      BabyList.createBaby(name)
       return self.getCreateBabyJobSuccessPayload(name)
 
   def getConfirmBabyJobPayload(self, name):
@@ -150,13 +117,13 @@ class MessageApi():
                 "actions": [
                     {
                         "type": "message",
-                        "label": Confirm.yes,
-                        "text": Confirm.yes
+                        "label": Confirm.YES.value,
+                        "text": Confirm.YES.value
                     },
                     {
                         "type": "message",
-                        "label": Confirm.no,
-                        "text": Confirm.no
+                        "label": Confirm.NO.value,
+                        "text": Confirm.NO.value
                     }
                 ]
             }
@@ -187,7 +154,7 @@ class MessageApi():
     })
 
   def getBabyListPayload(self):
-    if not BABY_LIST:
+    if not BabyList.getList():
       return json.dumps({
         "replyToken": self.reply_token,
         "messages": [
@@ -198,7 +165,7 @@ class MessageApi():
         ]
       })
 
-    baby_string = "\n- ".join(BABY_LIST)
+    baby_string = "\n- ".join(BabyList.getList())
     result_string = f"我的寶寶:\n- {baby_string}"
 
     return json.dumps({
