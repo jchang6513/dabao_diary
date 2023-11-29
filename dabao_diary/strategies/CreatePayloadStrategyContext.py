@@ -1,15 +1,19 @@
 from setuptools import Command
 from dabao_diary.entity.MessageEntity import MessageEntity
 from dabao_diary.model.UserAction import UserAction
+from dabao_diary.strategies.CreateAddActionPayloadStrategy import CreateAddActionPayloadStrategy
 from dabao_diary.strategies.CreateAddBabyPayloadStrategy import CreateAddBabyPayloadStrategy
+from dabao_diary.strategies.CreateCreateActionJobPayloadStrategy import CreateCreateActionJobPayloadStrategy
 from dabao_diary.strategies.CreateCreateBabyJobPayloadStrategy import CreateCreateBabyJobPayloadStrategy
 from dabao_diary.strategies.CreateCommandListPayloadStrategy import CreateCommandListPayloadStrategy
+from dabao_diary.strategies.CreateGetActionListPayloadStrategy import CreateGetActionListPayloadStrategy
 from dabao_diary.strategies.CreateGetBabyListPayloadStrategy import CreateGetBabyListPayloadStrategy
 from dabao_diary.strategies.CreateInvalidPayloadStrategy import CreateInvalidPayloadStrategy
 
 from dabao_diary.entity.MessageEntity import MessageEntity
 from dabao_diary.enums.Command import Command
 from dabao_diary.model.UserAction import UserAction
+from dabao_diary.utils.CreateActionJob import CreateActionJob
 from dabao_diary.utils.MessageApi import CreateBabyJob
 
 class CreatePayloadStrategyContext():
@@ -36,6 +40,8 @@ class CreatePayloadStrategyContext():
     if UserAction.isUserActionExist(self.user_id):
       if isinstance(UserAction.getUserAction(self.user_id), CreateBabyJob):
         self.strategy = CreateCreateBabyJobPayloadStrategy
+      if isinstance(UserAction.getUserAction(self.user_id), CreateActionJob):
+        self.strategy = CreateCreateActionJobPayloadStrategy
 
     # without job
     elif message == Command.COMMAND_LIST.value:
@@ -46,6 +52,12 @@ class CreatePayloadStrategyContext():
 
     elif message == Command.BABY_LIST.value:
       self.strategy = CreateGetBabyListPayloadStrategy
+
+    elif message == Command.ADD_ACTION.value:
+      self.strategy = CreateAddActionPayloadStrategy
+
+    elif message == Command.ACTION_LIST.value:
+      self.strategy = CreateGetActionListPayloadStrategy
 
     else:
       self.strategy = CreateInvalidPayloadStrategy
